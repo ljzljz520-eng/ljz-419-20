@@ -4,7 +4,7 @@
 
 from typing import Optional
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -35,6 +35,7 @@ def get_auth_service(
 
 
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     auth_service: IAuthService = Depends(get_auth_service),
 ) -> User:
@@ -45,17 +46,18 @@ async def get_current_user(
             detail="未提供认证凭证",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
     token = credentials.credentials
     user = auth_service.get_current_user(token)
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="无效的认证凭证或已过期",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
+    request.state.user_id = str(user.id)
     return user
 
 

@@ -82,13 +82,23 @@ services:
             - Authorization
             - Content-Type
             - X-Request-ID
+            - X-Trace-ID
           exposed_headers:
             - X-Request-ID
+            - X-Trace-ID
           credentials: true
           max_age: 3600
 
 # 全局插件
 plugins:
+  # 链路追踪 ID：生成并透传 X-Trace-ID 给上游服务
+  - name: correlation-id
+    config:
+      header_name: X-Trace-ID
+      generator: uuid
+      echo_downstream: true
+      policy: upstream
+
   # 请求速率限制
   - name: rate-limiting
     config:

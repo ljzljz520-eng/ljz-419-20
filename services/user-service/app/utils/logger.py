@@ -70,9 +70,10 @@ def setup_logging(log_level: Optional[str] = None) -> None:
     root_logger.setLevel(numeric_level)
 
     # 设置第三方库日志级别
+    # uvicorn.access 输出的是普通字符串访问日志，访问日志由结构化请求日志中间件统一记录
     for logger_name, logger_level in (
         ("uvicorn", logging.INFO),
-        ("uvicorn.access", logging.INFO),
+        ("uvicorn.access", logging.WARNING),
         ("sqlalchemy.engine", logging.WARNING),
     ):
         external_logger = logging.getLogger(logger_name)

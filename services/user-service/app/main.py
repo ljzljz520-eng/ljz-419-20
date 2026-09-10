@@ -9,7 +9,9 @@
 
 from contextlib import asynccontextmanager
 from datetime import datetime
+from time import perf_counter
 from typing import Any
+from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI, Request, HTTPException
@@ -207,24 +209,39 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# 请求 ID 中间件
+# 链路追踪与结构化访问日志中间件
 @app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    """添加请求追踪 ID"""
-    import uuid
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+async def trace_request_log(request: Request, call_next):
+    """为每个请求绑定 trace_id 上下文，并在请求结束时输出结构化访问日志"""
+    trace_id = request.headers.get("X-Trace-ID") or request.headers.get("X-Request-ID") or str(uuid4())
+    start = perf_counter()
+
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(
-        request_id=request_id,
-        http_method=request.method,
-        http_path=request.url.path,
+        trace_id=trace_id,
+        service_name=settings.SERVICE_NAME,
+        method=request.method,
+        path=request.url.path,
     )
 
+    status_code = 500
     try:
         response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
+        status_code = response.status_code
+        response.headers["X-Trace-ID"] = trace_id
+        response.headers["X-Request-ID"] = trace_id
         return response
     finally:
+        logger.info(
+            "http_request",
+            trace_id=trace_id,
+            method=request.method,
+            path=request.url.path,
+            status=status_code,
+            duration=(perf_counter() - start) * 1000,
+            user_id=getattr(request.state, "user_id", None),
+            service_name=settings.SERVICE_NAME,
+        )
         structlog.contextvars.clear_contextvars()
 
 
